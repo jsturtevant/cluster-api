@@ -110,10 +110,11 @@ kubectl create -f {{#releaselink gomodule:"sigs.k8s.io/cluster-api" asset:"clust
 {{#tabs name:"tab-installation-bootstrap" tabs:"Kubeadm"}}
 {{#tab Kubeadm}}
 
-Check the [Kubeadm provider releases](https://github.com/kubernetes-sigs/cluster-api-bootstrap-provider-kubeadm/releases) for an up-to-date components file.
+Check the [Kubeadm provider releases](https://github.com/kubernetes-sigs/cluster-api/releases) for an up-to-date components file.
 
 ```bash
-kubectl create -f {{#releaselink gomodule:"sigs.k8s.io/cluster-api-bootstrap-provider-kubeadm" asset:"bootstrap-components.yaml" version:"0.1.x"}}
+kubectl create -f {{#releaselink gomodule:"sigs.k8s.io/cluster-api" asset:"cluster-api-components.yaml
+" version:"0.2.x"}}
 ```
 
 {{#/tab }}
