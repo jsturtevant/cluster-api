@@ -29,6 +29,7 @@ see-also:
       - [cloud-init and cloudbase-init](#cloud-init-and-cloudbase-init)
       - [Image Creation](#image-creation)
       - [Kubelet and other component configuration](#kubelet-and-other-component-configuration)
+      - [Kubeadm retry support](#kubeadm-retry-support)
       - [netbios names](#netbios-names)
     - [Infrastructure provider implementation](#infrastructure-provider-implementation)
     - [User Stories](#user-stories)
@@ -131,7 +132,47 @@ and use privileged containers in place of wins.exe enabled containers.
 
 Each infrastructure providers must provide their own `PreKubeadmCommands`/`PostKubeadmCommands` scripts that
 are required for additional configuration for the node. During planning for Beta we will be able to identify
-common overlapping features that can be added into the the base images in image-builder and for re-use 
+common overlapping features that can be added into the the base images in image-builder for re-use.
+
+#### Kubeadm retry support 
+
+Based on the [CAPH Windows implementation](https://github.com/microsoft/cluster-api-provider-azurestackhci), it was 
+identified that the [experimental retry](https://github.com/kubernetes-sigs/cluster-api/pull/2763) for kubeadm 
+cluster provisioning (CABPK) will be beneficial for stability of Windows node joins.  The `UseExperimentalRetryJoin` 
+currently uses a Linux shell script to create add the retry functionality and does not work on Windows. The ideal 
+solution is to add retries to CABPK core but requires kubeadm refactors to enable use as a library that are still in 
+progress (see the [tracking issue](https://github.com/kubernetes-sigs/cluster-api/issues/2769#issuecomment-603989176)).
+
+For the current `UseExperimentalRetryJoin` CABPK will need to be aware of the type of OS that is requesting the kubeadm join 
+script to accommodate Windows. The OS information should be added on the Infra Machine (AWSMachine, AzureMachine, 
+DockerMachine, etc) since it's tightly coupled to the infrastructure and OS image. The CAPI machine object should be agnostic 
+and look as much as possible as a Kubernetes node, rather than a VM. We will add this as an optional field on the Status Field 
+in the CAPI Machine type and CABPK (and other tooling) can use it. If the field is not provided then we will assume the current 
+version to maintain backwards compatibility. 
+
+An example on the Infra Machine:
+
+```go
+type InfraMachineSpec struct {
+	...
+	VMSize string `json:"vmSize"`
+  OS OsType `json:"osType:"`
+  ...
+}
+```
+
+CAPI would need to know the OS type so we can provide it as a well known field:
+
+```go
+type OsType string
+
+const (
+	Linux = OsType("Linux")
+	Windows = OsType("Windows")
+)
+```
+
+The Machine controller will search for this optional `osType` field and sync it to the status field. CABPK would then reference the Status field for the `osType` and alter the logic in [cloudinit](https://github.com/kubernetes-sigs/cluster-api/blob/2afc70d32567682f93468033433e72fd428fc8f9/bootstrap/kubeadm/internal/cloudinit/cloudinit.go) to output the correct field.
 
 #### netbios names
 
@@ -238,8 +279,12 @@ Nodes that use this pattern will require the infrastructure to be immutable as s
 
 **Note:** *Section not required until targeted at a release.*
 
-For Alpha, no changes are required for CAPI, the testing plan would be left up to each infrastructure provider. It is be recommended to leverage the existing upstream Windows tests to show that Windows nodes 
-are operating effectively.  If changes are required to the CAPI codebase unit tests and if appropriate e2e tests will be added.
+The current CAPI E2E framework uses kind to complete testing.  The changes to CAPI core are proposed for the Experimental Retry 
+support which do not have end to end tests. In addition, Windows does not support Docker in Docker so the logic to sync the 
+OsType for CABPK retries will be unit tested.
+
+For infrastructure providers the testing plan is left up to each infrastructure provider. It is be recommended to leverage 
+the existing upstream Windows tests to show that Windows nodes are operating effectively. 
 
 ### Graduation Criteria [optional]
 
