@@ -1,22 +1,23 @@
 ---
-title: Windows Support
+title: Windows kubeadm-based worker nodes support
 authors:
   - "@jsturtevant"
   - "@ksubrmnn"
 reviewers:
   - "@CecileRobertMichon"
   - "@ncdc"
+  - "@randomvariable"
 creation-date: 2020-08-25
 last-updated: 2020-09-09
 status: implementable
 see-also:
 ---
 
-# Windows Support
+# Windows kubeadm-based worker nodes support
 
 ## Table of Contents
 
-- [Windows Support](#windows-support)
+- [Windows kubeadm-based worker nodes support](#windows-kubeadm-based-worker-nodes-support)
   - [Table of Contents](#table-of-contents)
   - [Glossary](#glossary)
   - [Summary](#summary)
@@ -55,24 +56,28 @@ Refer to the [Cluster API Book Glossary](https://cluster-api.sigs.k8s.io/referen
 
 ## Summary
 
-This proposal is for the support of the Windows nodes with CAPI and [infrastructure providers](https://cluster-api.sigs.k8s.io/reference/glossary.html#infrastructure-provider) that wish to support Windows [OS](https://cluster-api.sigs.k8s.io/reference/glossary.html#operating-system) worker nodes.  
-Windows has been Stable in Kubernetes since 1.14 and is supported in mix worker node scenarios.  
+This proposal is for the support of Windows [OS](https://cluster-api.sigs.k8s.io/reference/glossary.html#operating-system) worker nodes in Cluster API and [infrastructure providers](https://cluster-api.sigs.k8s.io/reference/glossary.html#infrastructure-provider) that wish to support 
+Windows. Cluster API will support Windows by using kubeadm to add Windows nodes to a [workload cluster](https://cluster-api.sigs.k8s.io/reference/glossary.html#workload-cluster). 
 
-Windows support will provide the ability to add Windows nodes to a [workload cluster](https://cluster-api.sigs.k8s.io/reference/glossary.html#workload-cluster).  Windows nodes are configured differently across 
-solutions and the centralization of the scripts and guidance in the Cluster API solution will provide 
-guidance for the community on best practices for configuring Windows nodes at scale.
+Windows support has been stable in Kubernetes since 1.14 and is supported in clusters that run Linux for the
+Control Plane.  The Worker nodes can be any combination of Windows or Linux. 
 
 Windows node support has some unique challenges because of the current limitations of Windows Containers. 
 Windows containers do not support privileged operations which means that configuration and access to the host
 machine must be done at provisioning time.  
 
-An example of this limitation is how kube-proxy gets configured on Windows nodes. Kube-proxy typically run as a 
-Windows service on the host machine and it cannot be deployed as a Daemon set as it is on Linux.  
-To address this limitation the community has built tools such as the [CSI-Proxy](https://github.com/kubernetes-csi/csi-proxy), which is a CSI driver specific proxy. This proposal will address how to approach the configuration of components 
-that are typically deployed as daemon sets when bootstrapping Windows nodes in CAPI.
+An example of this limitation is how kube-proxy gets configured on Windows nodes. Kube-proxy typically runs as a 
+Windows service on the host machine and it cannot be deployed as a DaemonSet as it is on Linux.  
+To address this limitation the community has built tools such as the [CSI-Proxy](https://github.com/kubernetes-csi/csi-proxy), which is a CSI driver specific proxy. 
+This proposal will address how to approach the configuration of components that are typically deployed as 
+daemon sets when bootstrapping Windows nodes in CAPI.
 
 ## Motivation
-Kubernetes has supported Windows workloads since the release of Windows support in Kubernetes 1.14. The motivation of this project is to enable Cluster API customers to deploy Windows as part of a mixed OS cluster via the Cluster API automation built for platform operators.  This will enable cluster operators to define Windows machines in the same consistent and repeatable fashion.
+
+Kubernetes has supported Windows workloads since the release of Windows support in Kubernetes 1.14. The 
+motivation of this proposal is to enable Cluster API users to deploy Windows as part of a mixed OS cluster 
+via the Cluster API automation built for platform operators.  This will enable cluster operators to define 
+Windows machines in the same consistent and repeatable fashion.
 
 ### Goals
 
@@ -89,62 +94,62 @@ Kubernetes has supported Windows workloads since the release of Windows support 
 
 ## Proposal
 
-There are several components that need to be addressed for Windows support:
-
-- [Cluster API Bootstrap Provider Kubeadm](https://github.com/kubernetes-sigs/cluster-api/tree/master/bootstrap/kubeadm)
-- Image creation 
-- Kubelet and other component configuration
-- Infrastructure provider implementation 
-
 ### Cluster API Bootstrap Provider Kubeadm
 
 #### cloud-init and cloudbase-init
+
 For Linux, when using the Kubeadm bootstrap provider, the bootstrap script is provided to the infrastructure provider as a cloud-init script. 
 The infrastructure provider is responsible for putting the cloud-init script in the right location. 
 When the VM is booted, the cloud-init script runs automatically. 
 
 Cloud-init does not have Windows support. An alternative product is [cloudbase-init](https://github.com/cloudbase/cloudbase-init). 
 Cloudbase-init functions in the same way as cloud-init and can consume cloud-init scripts as provided by the Cluster API Bootstrap Provider Kubeadm.  
-By using cloudbase-init, Windows can leverage the existing solutions and stay up to date with the latest changes in CABPK.
+By using cloudbase-init, Windows can leverage the existing solutions and stay up to date with the latest changes in CABPK.  Refer to the [cloudbase-init documentation](https://cloudbase-init.readthedocs.io/en/latest/intro.html) for features that are supported.
 
 #### Image Creation
-Using cloudbase-init requires the creation of a image with the tooling installed on it since it is not 
-provided out of the box by any cloud providers.  To address this we will provide packer scripts as part of 
-the [image-builder project](https://github.com/kubernetes-sigs/image-builder) that will pre-install 
-cloudbase init.  It is important to note that while scripts can be provided to build an image, all images 
-built will need to adhere to [Windows licensing requirements](https://www.microsoft.com/en-us/licensing/product-licensing/windows-server).
+
+Using cloudbase-init requires the creation of an image with the tooling installed on it since it is not 
+provided out of the box by any cloud providers.  We'll provide packer scripts as part of 
+the [image-builder project](https://github.com/kubernetes-sigs/image-builder) that pre-installs 
+`cloudbase-init`.  It is important to note that while scripts can be provided to build an image, all images 
+built need to adhere to [Windows licensing requirements](https://www.microsoft.com/en-us/licensing/product-licensing/windows-server).
 
 There is prior art for building Windows base images. For example, AKS-Engine has an example implementation for using packer and scripts to do image configuration: https://github.com/Azure/aks-engine/blob/master/vhd/packer/windows-vhd-builder.json.  
-Another example is the the [sig-windows-tools]([sig-windows-tools](https://github.com/kubernetes-sigs/sig-windows-tools)) which provide scripts for image configuration when using Kubeadm.
+Another example is the the [sig-windows-tools](https://github.com/kubernetes-sigs/sig-windows-tools) which provide scripts for image configuration when using Kubeadm.
 
-Although the Linux implementation in image-builder uses Ansible for configuration, Windows will not share
+Although the Linux implementation in image-builder uses Ansible for configuration, Windows isn't going to share
 the same configuration because [Ansible](https://docs.ansible.com/ansible/latest/user_guide/windows.html) requires [Windows specific modules](https://docs.ansible.com/ansible/latest/modules/list_of_windows_modules.html) to do the configuration. 
 
 #### Kubelet and other component configuration
+
 Due to the lack of privileged containers in Windows, a combination of `PreKubeadmCommands`/`PostKubeadmCommands` 
 scripts and wins.exe can be used to configure the nodes. Wins.exe is currently provided as a way to bootstrap nodes along with kubeadm in the [Kubernetes documentation for adding Windows nodes](https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/adding-windows-nodes/).  
 The components from the [preparenode script](https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/adding-windows-nodes/#joining-a-windows-worker-node) can be used during image creation.
 
-In the future with the introduction of the [Privileged Containers for Windows containers](https://github.com/kubernetes/enhancements/issues/1981) we can use Privileged containers in place of wins.exe enabled containers. 
-As the privileged container support is still being discussed, the replacement of the `PreKubeadmCommands`/`PostKubeadmCommands` kubeadm scripts might be possible but will need to be addressed at a later point in time. 
+In the future, when support for [Privileged Containers for Windows containers](https://github.com/kubernetes/enhancements/issues/1981) is merged, we might be able to revisit this proposal 
+and use privileged containers in place of wins.exe enabled containers. 
 
-The plan during Alpha implementation is that each of the infrastructure providers will provide their own `PreKubeadmCommands`/`PostKubeadmCommands` scripts. 
-For Beta we should be able to identify common overlapping features that can be added directly to the kubeadm cluster provisioning 
-(CABPK) in a similar way that the [kubeadm-bootstrap-script.sh](https://github.com/kubernetes-sigs/cluster-api/blob/master/bootstrap/kubeadm/internal/cloudinit/kubeadm-bootstrap-script.sh) is done today.
+Each infrastructure providers must provide their own `PreKubeadmCommands`/`PostKubeadmCommands` scripts that
+are required for additional configuration for the node. During planning for Beta we will be able to identify
+common overlapping features that can be added into the the base images in image-builder and for re-use 
 
 #### netbios names
-Netbios name resolution concerns were addressed in https://github.com/kubernetes-sigs/cluster-api/issues/2217#issuecomment-598999436:
 
-> If the DNS suffix search order is properly populated in Windows nodes, the long host names Cluster-API generates should directly be usable. And whether NETBIOS is enable or not shouldn't matter. 
+Cluster API currently generates the machine deployment name which can result in long machine names.  This was a was concern for Netbios on Windows which requires Windows computer names to be 15 characters or fewer (https://support.microsoft.com/en-us/help/909264/naming-conventions-in-active-directory-for-computers-domains-sites-and). 
+Attempting to set a hostname with more than 15 characters on a windows machine will result in only the first 15 being used.
+
+The conclusion of the [issue](https://github.com/kubernetes-sigs/cluster-api/issues/2217) was NETBIOS name resolution is mostly unused today and is not required to join an AD domain since Windows 2000. If DNS is properly configured then the long host names generated by Cluster API will be usable.  
 
 ### Infrastructure provider implementation
+
 By leveraging cloudbase-init, an infrastructure provider implementation will require only a few changes which include:
 
-- Make changes to their provider api to enable Windows OS infra machines
-- Ensuring the cloudbase-init data lands in the correct place on the machines for Windows OS worker nodes
+- Make changes to their provider api to enable Windows OS infra machines ([example](https://github.com/ionutbalutoiu/cluster-api-provider-azure/commit/9c8daedac75959b141fec7ea909c2c1fd0bd484b))
+- Ensuring cloudbase-init is configured properly to read UserData which will contain the cloud-init script.  Users must configure 
+[cloudbase-init with a metadata service](https://cloudbase-init.readthedocs.io/en/latest/services.html#configuring-available-services) that has support for [UserData](https://cloudbase-init.readthedocs.io/en/latest/userdata.html) ([example](https://cloudbase-init.readthedocs.io/en/latest/tutorial.html#configuration-file)).
 
 From the infrastructure provider perspective, there are no known required changes to the CAPI API to support Windows
-nodes at this time.  If during alpha we identify changes we will open issues pertaining to the changes required.
+nodes at this time. If during alpha we identify changes we will open issues pertaining to the changes required.
 
 ### User Stories
 
@@ -160,14 +165,18 @@ straightforward as a drop and replace.
 
 While this is the best choice for the alpha and the community direction there are some infrastructure providers that may 
 not be able to use wins due to signing or security concerns since wins allows the execution of any arbitrary command on 
-the host. Pre/post commands can be used as an alternative with additional scripts cached on the image that enable the 
-configuration.
+the host. Pre/post commands can be used as an alternative with additional scripts cached on the image that enable the configuration.
 
 #### Signing of the components.  
+
 Some infrastructure providers will require any scripts and binaries are signed before deployment.  
-This will be managed by providing the ability to provide url's to override external scripts and binaries during the image building process. An example of how this is could be accomplished is in the Linux implementation is the [containerd_url](https://github.com/kubernetes-sigs/image-builder/blob/58a08a1a8241356bab4afb1c6d8d2fbb8ef54bcf/images/capi/packer/config/ansible-args.json).  In this case, the `containerd_url` could point to a location that would contain a packaged with signed binaries from the infrastructure provider.
+This will be managed by providing the ability to provide url's to override external scripts and binaries 
+during the image building process. An example of how this is could be accomplished is in the Linux 
+implementation is the [containerd_url](https://github.com/kubernetes-sigs/image-builder/blob/58a08a1a8241356bab4afb1c6d8d2fbb8ef54bcf/images/capi/packer/config/ansible-args.json).  In this case, the 
+`containerd_url` could point to a location that would contain a packaged with signed binaries from the infrastructure provider.
 
 #### Known prototypes and prior work: 
+
 - https://github.com/adelina-t/cloudbase-init-capz-demo
 - https://github.com/benmoss/kubeadm-windows/tree/master/cluster-api-aws
 - https://github.com/microsoft/cluster-api-provider-azurestackhci
@@ -192,18 +201,18 @@ CAPI and only Kubeadm bootstrap tokens, which have limited lifetime, should be u
 ### Risks and Mitigations
 
 - Privileged containers are not implemented.
-  - There is an active discussion and [KEP](https://docs.google.com/document/d/12EUtMdWFxhTCfFrqhlBGWV70MkZZPOgxw0X-LTR0VAo/edit#) in place.  At the Beta stage the community can do a checkpoint to determine if the solution fits customer needs
+  - There is an active discussion and [KEP](https://docs.google.com/document/d/12EUtMdWFxhTCfFrqhlBGWV70MkZZPOgxw0X-LTR0VAo/edit#) in place.  At the Beta stage the community can do a checkpoint to determine if the solution fits user needs
 - Cloudbase-init is a third party dependency
   - This project is under Apache 2.0 License : https://github.com/cloudbase/cloudbase-init which is cleared under the CNCF Allow list: https://github.com/cncf/foundation/blob/master/allowed-third-party-license-policy.md
 - Windows image Distribution
-  - Infrastructure providers can provide the ability to use customer provided images and images provided by image-promoter are recommended for testing and demonstration purposes. It is recommended the customer creates their own image. 
-  - Customers using the image scripts must ensure they are following [Windows licensing requirements](https://www.microsoft.com/en-us/licensing/product-licensing/windows-server)
+  - Infrastructure providers can provide the ability to use user provided images and images provided by image-promoter are recommended for testing and demonstration purposes. It is recommended the user creates their own image. 
+  - Users using the image scripts must ensure they are following [Windows licensing requirements](https://www.microsoft.com/en-us/licensing/product-licensing/windows-server)
 - Wins.exe is a third party dependency
   - The project is under the Apache 2.0 License
 
 ## Alternatives
 
-1. An alternative to using wins and daemonsets to do the configuration to download and configure components as services 
+1. An alternative to using wins.exe and DaemonSets to do the configuration to download and configure components as services 
    using the kubeadm pre/post commands. This would require the infrastructure providers to have the ability to pass 
    configuration through the use of these commands which is already done today. During the Alpha phase with the pre/post 
    scripts being developed by individual infra providers this will not be an issue.  With the move to Windows privileged
@@ -229,18 +238,17 @@ Nodes that use this pattern will require the infrastructure to be immutable as s
 
 **Note:** *Section not required until targeted at a release.*
 
-Given there are no changes to the CAPI codebase, The testing plan would be left up to each infrastructure provider. 
-It would be recommended to leverage the existing upstream Windows tests to show that Windows nodes are operating 
-effectively.  If changes are required to the CAPI codebase unit tests and if appropriate e2e tests should be added.
+For Alpha, no changes are required for CAPI, the testing plan would be left up to each infrastructure provider. It is be recommended to leverage the existing upstream Windows tests to show that Windows nodes 
+are operating effectively.  If changes are required to the CAPI codebase unit tests and if appropriate e2e tests will be added.
 
 ### Graduation Criteria [optional]
 
 **Note:** *Section not required until targeted at a release.*
 
 #### Alpha
-`PreKubeadmCommands`/`PostKubeadmCommands` command scripts are created per infrastructure provider
-Initially implemented with wins and pre/post commands
-Windows Packer script to create image with cloudbase-init added to the image builder scripts
+- `PreKubeadmCommands`/`PostKubeadmCommands` command scripts are created per infrastructure provider
+- Initially implemented with wins.exe
+- Windows Packer scripts to create image with cloudbase-init added to the image builder scripts
 
 #### Beta
 - Pre/Post commands moved to bootstrap provider
