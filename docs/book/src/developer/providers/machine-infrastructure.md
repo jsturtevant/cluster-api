@@ -25,6 +25,9 @@ A machine infrastructure provider must define an API type for "infrastructure ma
            instead. If supporting conversions from previous types, the provider will need to support a conversion from
            the provider-specific field that was previously used to the `failureDomain` field to support the automated
            migration path.
+        1. `osType` - string value of either `Linux` or `Windows` which can be used by other providers to provide OS specific 
+           behavior.  If not included it is assumed the machine `OsType` is `Linux`. Refer to the specific provider 
+           documentation for support and any changes in behavior.
 6. Must have a `status` field with the following:
     1. Required fields:
         1. `ready` (boolean): indicates the provider-specific infrastructure has been provisioned and is ready

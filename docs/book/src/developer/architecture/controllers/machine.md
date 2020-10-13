@@ -81,6 +81,14 @@ The `spec` object **must** at least one field defined:
 
 * `providerID` - a cloud provider ID identifying the machine.
 
+#### Optional `spec` fields
+
+The `spec` object **may** define the following field:
+
+* `osType` - string value of either `Linux` or `Windows` which can be used by providers to provide OS specific behavior.  
+  If not included it is assumed the machine `OsType` is `Linux`. Refer to the specific provider documentation to 
+  for support and changes in behavior of the provider.
+
 #### Required `status` fields
 
 The `status` object **must** at least one field defined:

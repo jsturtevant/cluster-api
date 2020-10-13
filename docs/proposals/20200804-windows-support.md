@@ -143,25 +143,13 @@ currently uses a Linux shell script to create add the retry functionality and do
 solution is to add retries to CABPK core but requires kubeadm refactors to enable use as a library that are still in 
 progress (see the [tracking issue](https://github.com/kubernetes-sigs/cluster-api/issues/2769#issuecomment-603989176)).
 
-For the current `UseExperimentalRetryJoin` CABPK will need to be aware of the type of OS that is requesting the kubeadm join 
-script to accommodate Windows. The OS information should be added on the Infra Machine (AWSMachine, AzureMachine, 
+To add support for Windows, the current `UseExperimentalRetryJoin` in CABPK needs to be aware of the type of OS that is requesting the kubeadm join 
+to provide the correct script. The OS information should be added on the Infra Machine (AWSMachine, AzureMachine, 
 DockerMachine, etc) since it's tightly coupled to the infrastructure and OS image. The CAPI machine object should be agnostic 
-and look as much as possible as a Kubernetes node, rather than a VM. We will add this as an optional field on the Status Field 
-in the CAPI Machine type and CABPK (and other tooling) can use it. If the field is not provided then we will assume the current 
-version to maintain backwards compatibility. 
+and look as much as possible as a Kubernetes node [see discussion](https://github.com/kubernetes-sigs/cluster-api/pull/3616#discussion_r495132309), 
+rather than a VM. The field on the Infra Machine is optional and if not provided will be assumed the value is Linux.
 
-An example on the Infra Machine:
-
-```go
-type InfraMachineSpec struct {
-	...
-	VMSize string `json:"vmSize"`
-  OS OsType `json:"osType:"`
-  ...
-}
-```
-
-CAPI would need to know the OS type so we can provide it as a well known field:
+CAPI will need to know the OS type so we can provide it as a well known field:
 
 ```go
 type OsType string
@@ -172,7 +160,18 @@ const (
 )
 ```
 
-The Machine controller will search for this optional `osType` field and sync it to the status field. CABPK would then reference the Status field for the `osType` and alter the logic in [cloudinit](https://github.com/kubernetes-sigs/cluster-api/blob/2afc70d32567682f93468033433e72fd428fc8f9/bootstrap/kubeadm/internal/cloudinit/cloudinit.go) to output the correct field.
+An example of `OsType` the Infra Machine:
+
+```go
+type InfraMachineSpec struct {
+	VMSize string `json:"vmSize"`
+  OS OsType `json:"osType:"`
+  ...
+}
+```
+
+CABPK (or any provider that wishes to use this information) will search for this optional `OsType` field on the Infra Machine. If the field is not found it will be defaulted 
+to `Linux` to maintain backwards compatibility.  This additional field contract between a bootstrap provider and Infra Machine will be optional. 
 
 #### netbios names
 
