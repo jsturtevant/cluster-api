@@ -236,7 +236,10 @@ would bring parity to Linux implementation during the Beta phase.
 
 There is [no known requirement](https://github.com/kubernetes-sigs/cluster-api/issues/2218) for managing the Admin
 Kubeconfig or domain passwords in the Windows configuration. Domain passwords should be managed outside the scope of 
-CAPI and only Kubeadm bootstrap tokens, which have limited lifetime, should be used for the joining the Windows nodes. 
+CAPI and only Kubeadm bootstrap tokens, which have limited lifetime, should be used for the joining the Windows nodes to the cluster. 
+The joining of Windows nodes to a Domain Controller can be accomplished through pre/post kubeadm commands.  Future support could be 
+added via a separate controller that supports composable bootstrapping which is outside of the scope of this CAEP.  Refer 
+to issue [#3761](https://github.com/kubernetes-sigs/cluster-api/issues/3761) for more details.
 
 ### Risks and Mitigations
 
