@@ -237,7 +237,7 @@ metadata:
 			return apierrors.IsNotFound(err)
 		}, timeout).Should(BeTrue())
 	})
-	It("Should reconcile a ClusterResourceSet when a resource is created that is part of ClusterResourceSet resources", func() {
+	FIt("Should reconcile a ClusterResourceSet when a resource is created that is part of ClusterResourceSet resources", func() {
 		labels := map[string]string{"foo2": "bar2"}
 		newCMName := "test-configmap3"
 
@@ -294,6 +294,17 @@ metadata:
 		}
 		Expect(testEnv.Create(ctx, testConfigmap)).To(Succeed())
 
+
+		cmKey := client.ObjectKey{
+				Namespace: defaultNamespaceName,
+				Name:      newCMName,
+			}
+		Eventually(func() bool {
+			m := &corev1.ConfigMap{}
+			err := testEnv.Get(ctx,cmKey,m)
+			return err == nil
+		}, timeout).Should(BeTrue())
+
 		// When the ConfigMap resource is created, CRS should get reconciled immediately.
 		Eventually(func() bool {
 			binding := &addonsv1.ClusterResourceSetBinding{}
@@ -301,11 +312,20 @@ metadata:
 			err := testEnv.Get(ctx, clusterResourceSetBindingKey, binding)
 			if err == nil {
 				if len(binding.Spec.Bindings[0].Resources) > 0 && binding.Spec.Bindings[0].Resources[0].Name == newCMName {
+					fmt.Println("##########")
+					fmt.Println("##########")
+					fmt.Println("##########")
+					fmt.Println("success!")
+					fmt.Println("##########")
+					fmt.Println("##########")
+					fmt.Println("##########")
+
 					return true
 				}
 			}
 			return false
 		}, timeout).Should(BeTrue())
+		fmt.Printf("#### time %v", time.Now())
 		Expect(testEnv.Delete(ctx, testConfigmap)).To(Succeed())
 	})
 	It("Should delete ClusterResourceSet from the bindings list when ClusterResourceSet is deleted", func() {

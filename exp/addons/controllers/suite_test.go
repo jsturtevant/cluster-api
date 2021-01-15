@@ -53,7 +53,7 @@ var _ = BeforeSuite(func(done Done) {
 	trckr, err := remote.NewClusterCacheTracker(log.NullLogger{}, testEnv.Manager)
 	Expect(err).NotTo(HaveOccurred())
 	Expect((&ClusterResourceSetReconciler{
-		Client:  testEnv,
+		Client:  testEnv.Manager.GetClient(),
 		Tracker: trckr,
 	}).SetupWithManager(ctx, testEnv.Manager, controller.Options{MaxConcurrentReconciles: 1})).To(Succeed())
 	Expect((&ClusterResourceSetBindingReconciler{

@@ -101,6 +101,10 @@ func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr
 
 func (r *ClusterResourceSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
 	log := ctrl.LoggerFrom(ctx)
+	rand := util.RandomString(5)
+	ctx = context.WithValue(ctx, "key", rand)
+	log.Info("#### Enter Reconcile", "key", rand)
+	defer log.Info("#### Leave Reconcile", "key", rand)
 
 	// Fetch the ClusterResourceSet instance.
 	clusterResourceSet := &addonsv1.ClusterResourceSet{}
@@ -108,6 +112,7 @@ func (r *ClusterResourceSetReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
+			log.Info("############## can't crs!", "resource", req.NamespacedName, "crs", clusterResourceSet)
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
@@ -147,7 +152,11 @@ func (r *ClusterResourceSetReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	for _, cluster := range clusters {
 		if err := r.ApplyClusterResourceSet(ctx, cluster, clusterResourceSet); err != nil {
-			return ctrl.Result{}, err
+			// should do back off or something?
+			return ctrl.Result{
+				Requeue:      true,
+				RequeueAfter: 5 * time.Second,
+			}, err
 		}
 	}
 
@@ -233,7 +242,8 @@ func (r *ClusterResourceSetReconciler) getClustersByClusterResourceSetSelector(c
 // TODO: If a resource already exists in the cluster but not applied by ClusterResourceSet, the resource will be updated ?
 func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Context, cluster *clusterv1.Cluster, clusterResourceSet *addonsv1.ClusterResourceSet) error {
 	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
-	log.Info("Applying ClusterResourceSet to cluster")
+	log.Info("Applying ClusterResourceSet to cluster", "key", ctx.Value("key"))
+	defer log.Info("#### Leave Applying", "key", ctx.Value("key"))
 
 	remoteClient, err := r.Tracker.GetClient(ctx, util.ObjectKey(cluster))
 	if err != nil {
@@ -279,7 +289,9 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 
 				// Continue without adding the error to the aggregate if we can't find the resource.
 				if apierrors.IsNotFound(err) {
-					continue
+					log.Info("############## can't find the object", "resource", resource, "ns", cluster.GetNamespace())
+					return err
+					//continue
 				}
 			}
 			errList = append(errList, err)
@@ -354,9 +366,11 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 		})
 	}
 	if len(errList) > 0 {
+		log.Info("############## erroring out", "resource")
 		return kerrors.NewAggregate(errList)
 	}
 
+	log.Info("############## marking as resource applied condition!!?!?", "resource")
 	conditions.MarkTrue(clusterResourceSet, addonsv1.ResourcesAppliedCondition)
 
 	return nil
@@ -373,6 +387,7 @@ func (r *ClusterResourceSetReconciler) getResource(ctx context.Context, resource
 	case string(addonsv1.ConfigMapClusterResourceSetResourceKind):
 		resourceConfigMap, err := getConfigMap(ctx, r.Client, resourceName)
 		if err != nil {
+			fmt.Println("############## failed to find configmap")
 			return nil, err
 		}
 

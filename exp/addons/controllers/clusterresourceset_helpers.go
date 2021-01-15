@@ -153,6 +153,7 @@ func getConfigMap(ctx context.Context, c client.Client, configmapName types.Name
 		Name:      configmapName.Name,
 	}
 	if err := c.Get(ctx, configMapKey, configMap); err != nil {
+		fmt.Printf("############## here4 %v", configMapKey)
 		return nil, err
 	}
 
